@@ -5,22 +5,30 @@
 <p class="draft-warning">⚠ 이 비교는 공식 "신구조문대비표"가 아니라, 저장된 두 문서 본문을 문장 단위로
 기계적으로 비교한 것입니다. 실제 조문 변경 여부는 반드시 원문으로 확인하세요.</p>
 
-<div class="diff-legend">
-  <span class="doc-title">A: {{ doc.title }}</span>
-  <span class="doc-title">B: {{ other.title }}</span>
+{% if truncated %}
+<p class="draft-warning">⚠ 문서가 길어 앞부분 일부만 비교했습니다. 두 문서가 서로 다른 규정이면
+비교 결과가 의미 없을 수 있습니다 — 관련 있는 문서끼리 비교해 주세요.</p>
+{% endif %}
+{% if diff_capped %}
+<p class="draft-warning">⚠ 차이가 너무 많아 앞부분 300줄까지만 표시했습니다. 서로 다른 규정을
+비교하고 있지는 않은지 확인해 주세요.</p>
+{% endif %}
+
+<div class="side-diff-head">
+  <div class="side-diff-head-cell side-diff-left-h">◀ 변경 전 — {{ doc.title }}</div>
+  <div class="side-diff-head-cell side-diff-right-h">변경 후 — {{ other.title }} ▶</div>
 </div>
 
-<div class="card diff-wrap">
-  {% if diff_lines %}
-    {% for d in diff_lines %}
-      {% if d.type == 'hunk' %}
-      <div class="diff-line diff-hunk">{{ d.text }}</div>
-      {% else %}
-      <div class="diff-line diff-{{ d.type }}">{{ '+ ' if d.type == 'add' else ('- ' if d.type == 'remove' else '　 ') }}{{ d.text }}</div>
-      {% endif %}
+<div class="card side-diff">
+  {% if rows %}
+    {% for r in rows %}
+    <div class="side-diff-row">
+      <div class="side-diff-cell side-diff-left{{ ' empty' if not r.left }}">{{ r.left or '(해당 없음)' }}</div>
+      <div class="side-diff-cell side-diff-right{{ ' empty' if not r.right }}">{{ r.right or '(해당 없음)' }}</div>
+    </div>
     {% endfor %}
   {% else %}
-    <p class="empty">두 문서 내용이 동일하거나, 비교할 내용이 없습니다.</p>
+    <p class="empty">두 문서 내용이 동일하거나, 비교할 만한 차이가 없습니다.</p>
   {% endif %}
 </div>
 {% endblock %}

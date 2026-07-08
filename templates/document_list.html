@@ -6,18 +6,19 @@
 {% if docs %}
 <div class="feed-list">
   {% for d in docs %}
+  {% set latest_note = get_latest_note(d['id']) %}
   <div class="feed-item">
     <div class="feed-meta">
       {% if d['board_name'] %}<span class="tag tag-board">{{ d['board_name'] }}</span>{% endif %}
       {% if d['origin'] == 'mfds_rss' %}<span class="tag tag-auto">자동수집</span>{% else %}<span class="tag tag-manual">수동등록</span>{% endif %}
       {% if d['upload_date']|is_new %}<span class="new-badge">신규</span>{% endif %}
-      {% if d['impact_note'] %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+      {% if latest_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
       <span class="feed-date">{{ d['upload_date']|fmt_date }}</span>
     </div>
     <div class="feed-title"><a href="{{ url_for('document_detail', doc_id=d['id']) }}">{{ d['title'] }}</a></div>
     {% set preview = d['extracted_text']|revision_preview %}
     {% if preview %}<p class="doc-snippet">🛠 {{ preview }}</p>{% endif %}
-    {% if d['impact_note'] %}<p class="memo-preview">📝 {{ d['impact_note'][:120] }}{% if d['impact_note']|length > 120 %}...{% endif %}</p>{% endif %}
+    {% if latest_note %}<p class="memo-preview">📝 {{ latest_note['note_text'][:120] }}{% if latest_note['note_text']|length > 120 %}...{% endif %}</p>{% endif %}
     <div class="doc-links">
       {% if d['source_url'] %}
         <button type="button" class="btn-view-original" data-title="{{ d['title'] }}" data-url="{{ d['source_url'] }}">🔗 원문 바로보기</button>

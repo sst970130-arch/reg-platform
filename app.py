@@ -5,7 +5,6 @@
 이 파일은 화면(라우트) 연결만 담당합니다.
 실제 로직은 modules/ 폴더의 db.py, extract.py, search.py, ai_analysis.py, mfds_sync.py 를 참고하세요.
 """
-import difflib
 import json
 import os
 import threading
@@ -22,6 +21,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
+app.jinja_env.globals["get_latest_note"] = db.get_latest_note
 
 ALLOWED_EXTENSIONS = {".pdf", ".pptx", ".ppt", ".txt"}
 
@@ -136,23 +136,81 @@ def document_detail(doc_id):
     if not doc:
         return "해당 문서를 찾을 수 없습니다.", 404
     revision_info = search.extract_revision_info(doc["extracted_text"])
-    other_docs = [d for d in db.get_all_documents(category=doc["category"]) if d["id"] != doc_id]
+    candidates = [d for d in db.get_all_documents(category=doc["category"]) if d["id"] != doc_id]
+    other_docs = search.find_related_versions(doc, candidates)
     attachments = db.get_attachments(doc_id)
     action_items = search.suggest_action_items(doc["board_name"], doc["category"])
+    notes = db.get_notes(doc_id)
     return render_template(
         "document_detail.html", doc=doc, revision_info=revision_info,
-        other_docs=other_docs, attachments=attachments, action_items=action_items,
+        other_docs=other_docs, attachments=attachments, action_items=action_items, notes=notes,
     )
 
 
-@app.route("/document/<int:doc_id>/impact", methods=["POST"])
-def document_impact_save(doc_id):
+@app.route("/document/<int:doc_id>/note", methods=["POST"])
+def document_note_add(doc_id):
     if not db.get_document(doc_id):
         return "해당 문서를 찾을 수 없습니다.", 404
-    note = request.form.get("impact_note", "").strip()
-    db.update_impact_note(doc_id, note)
-    flash("실무 영향 메모를 저장했습니다.", "success")
+    note_text = request.form.get("note_text", "").strip()
+    if note_text:
+        db.insert_note(doc_id, note_text)
+        flash("스티커 메모를 추가했습니다.", "success")
     return redirect(url_for("document_detail", doc_id=doc_id))
+
+
+@app.route("/note/<int:note_id>/edit", methods=["POST"])
+def note_edit(note_id):
+    note = db.get_note(note_id)
+    if not note:
+        return "해당 메모를 찾을 수 없습니다.", 404
+    note_text = request.form.get("note_text", "").strip()
+    if note_text:
+        db.update_note(note_id, note_text)
+        flash("스티커 메모를 수정했습니다.", "success")
+    return redirect(url_for("document_detail", doc_id=note["document_id"]))
+
+
+@app.route("/note/<int:note_id>/delete", methods=["POST"])
+def note_delete(note_id):
+    note = db.get_note(note_id)
+    if not note:
+        return "해당 메모를 찾을 수 없습니다.", 404
+    doc_id = note["document_id"]
+    db.delete_note(note_id)
+    flash("스티커 메모를 삭제했습니다.", "success")
+    return redirect(url_for("document_detail", doc_id=doc_id))
+
+
+@app.route("/document/<int:doc_id>/diff/upload", methods=["POST"])
+def document_diff_upload(doc_id):
+    """자동으로 이전 버전을 못 찾았을 때, 직접 갖고 있는 파일을 올려서 바로 비교할 수 있게 합니다."""
+    doc = db.get_document(doc_id)
+    if not doc:
+        return "해당 문서를 찾을 수 없습니다.", 404
+    file = request.files.get("file")
+    if not file or not file.filename:
+        flash("비교할 파일을 선택해 주세요.", "error")
+        return redirect(url_for("document_detail", doc_id=doc_id))
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        flash(f"지원하지 않는 파일 형식입니다: {ext} (PDF, PPTX, TXT만 가능)", "error")
+        return redirect(url_for("document_detail", doc_id=doc_id))
+
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    stored_path_abs = os.path.join(db.UPLOAD_DIR, safe_name)
+    file.save(stored_path_abs)
+    extracted_text = extract.extract_text(stored_path_abs)
+
+    uploaded_doc_id = db.insert_document(
+        category=doc["category"],
+        title=f"{doc['title']} (이전판 - 직접 업로드: {file.filename})",
+        extracted_text=extracted_text,
+        original_filename=file.filename,
+        stored_path=safe_name,
+        origin="manual",
+        board_name=doc["board_name"],
+    )
+    return redirect(url_for("document_diff", doc_id=doc_id, **{"with": uploaded_doc_id}))
 
 
 @app.route("/document/<int:doc_id>/diff")
@@ -163,22 +221,21 @@ def document_diff(doc_id):
     if not doc or not other:
         return "비교할 문서를 찾을 수 없습니다.", 404
 
+    MAX_LINES = 1500
     lines_a = search.to_diff_lines(doc["extracted_text"])
     lines_b = search.to_diff_lines(other["extracted_text"])
-    raw_diff = difflib.unified_diff(lines_a, lines_b, lineterm="", n=2)
-    diff_lines = []
-    for line in raw_diff:
-        if line.startswith("+++") or line.startswith("---"):
-            continue
-        elif line.startswith("@@"):
-            diff_lines.append({"type": "hunk", "text": "⋯"})
-        elif line.startswith("+"):
-            diff_lines.append({"type": "add", "text": line[1:]})
-        elif line.startswith("-"):
-            diff_lines.append({"type": "remove", "text": line[1:]})
-        else:
-            diff_lines.append({"type": "context", "text": line[1:]})
-    return render_template("document_diff.html", doc=doc, other=other, diff_lines=diff_lines)
+    truncated = len(lines_a) > MAX_LINES or len(lines_b) > MAX_LINES
+    lines_a = lines_a[:MAX_LINES]
+    lines_b = lines_b[:MAX_LINES]
+
+    MAX_ROWS = 300
+    rows = search.build_side_by_side_diff(lines_a, lines_b)
+    diff_capped = len(rows) > MAX_ROWS
+    rows = rows[:MAX_ROWS]
+    return render_template(
+        "document_diff.html", doc=doc, other=other, rows=rows,
+        truncated=truncated, diff_capped=diff_capped,
+    )
 
 
 @app.route("/guide")

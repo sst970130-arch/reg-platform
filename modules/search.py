@@ -3,6 +3,7 @@
 - TF-IDF 기반 키워드 유사도로 전체 문서(고시/Q&A/세미나)를 교차 검색합니다.
 - 별도의 외부 검색엔진/서버 없이 동작하도록 가볍게 구현했습니다.
 """
+import difflib
 import re
 import textwrap
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -196,6 +197,65 @@ def to_diff_lines(text, max_chars=120):
     return lines
 
 
+_CHECKLIST_MARKER = re.compile(r"점검표")
+_REVISION_HISTORY_MARKER = re.compile(r"개정\s*이력")
+
+
+def drop_admin_frontmatter(text):
+    """민원인안내서·지침서류 PDF 앞부분에 항상 붙는 "지침서·안내서 제·개정 점검표"
+    (등록대상 여부 체크리스트, "공무원용/민원인용" 구분 문답 등)와 뒤이어 나오는
+    "이 안내서는 ~~" 소개·면책 문구는 실제 규정 내용이 아니라 노이즈이므로 잘라냅니다.
+    바로 뒤에 나오는 "개정 이력"(변경 이력 요약표)은 유용한 정보라 그대로 남겨둡니다."""
+    if not text:
+        return text
+    checklist_m = _CHECKLIST_MARKER.search(text)
+    if not checklist_m:
+        return text
+    resume_m = _REVISION_HISTORY_MARKER.search(text, checklist_m.end())
+    if resume_m:
+        return text[:checklist_m.start()] + text[resume_m.start():]
+    return text
+
+
+_OPINION_FOOTER = re.compile(r"의견\s*제출|국민참여입법센터|전자우편|팩스")
+
+
+def _drop_opinion_footer(lines):
+    """행정예고 문서 끝에 항상 붙는 "의견 제출 방법/연락처" 안내 문구는 규정 내용이 아니라
+    절차 안내라서, 비교 결과에서 노이즈만 됩니다. 이 문구가 시작되는 지점부터는 잘라냅니다."""
+    for i, line in enumerate(lines):
+        if _OPINION_FOOTER.search(line):
+            return lines[:i]
+    return lines
+
+
+def build_side_by_side_diff(lines_a, lines_b):
+    """왼쪽(변경 전)/오른쪽(변경 후)을 나란히 놓고, 바뀐 부분만 순서대로 정리합니다.
+    동일한 내용은 결과에서 뺍니다 — 바뀐 줄만 보여줍니다. 한쪽에만 있는 줄은 반대쪽을
+    빈 칸으로 둡니다."""
+    lines_a = _drop_opinion_footer(lines_a)
+    lines_b = _drop_opinion_footer(lines_b)
+    sm = difflib.SequenceMatcher(None, lines_a, lines_b, autojunk=False)
+    rows = []
+    for tag, a1, a2, b1, b2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        elif tag == "delete":
+            for line in lines_a[a1:a2]:
+                rows.append({"left": line, "right": None})
+        elif tag == "insert":
+            for line in lines_b[b1:b2]:
+                rows.append({"left": None, "right": line})
+        elif tag == "replace":
+            old_seg, new_seg = lines_a[a1:a2], lines_b[b1:b2]
+            for i in range(max(len(old_seg), len(new_seg))):
+                rows.append({
+                    "left": old_seg[i] if i < len(old_seg) else None,
+                    "right": new_seg[i] if i < len(new_seg) else None,
+                })
+    return rows
+
+
 def suggest_action_items(board_name, category):
     """AI 없이, 문서 유형(게시판/카테고리)에 따른 일반적인 실무 체크리스트를 규칙 기반으로
     제안합니다. 문서 개별 내용까지 반영한 것은 아니므로 실제 적용 전 RA/QC 판단이 필요합니다."""
@@ -255,3 +315,30 @@ def find_related_seminars(matched_docs, top_k=3):
     scored = [(s, sc) for s, sc in zip(seminars, sims) if sc > 0]
     scored.sort(key=lambda x: x[1], reverse=True)
     return [s for s, _ in scored[:top_k]]
+
+
+_VERSION_SIMILARITY_THRESHOLD = 0.55
+
+
+def find_related_versions(doc, candidates, top_k=10):
+    """제목이 진짜로 비슷한(같은 규정의 다른 버전일 가능성이 높은) 문서만 골라냅니다.
+    같은 분류(카테고리)라는 이유만으로 아무 문서나 "이전 버전과 비교" 후보로 뜨는 게
+    이상하다는 지적을 반영해, 제목 유사도가 일정 기준 이상인 것만 후보로 남깁니다."""
+    if not candidates:
+        return []
+    corpus = [_clean_text(c["title"] or "") for c in candidates]
+    corpus.append(_clean_text(doc["title"] or ""))
+
+    try:
+        vectorizer = _make_vectorizer()
+        matrix = vectorizer.fit_transform(corpus)
+    except ValueError:
+        return []
+
+    base_vec = matrix[-1]
+    cand_vecs = matrix[:-1]
+    sims = cosine_similarity(base_vec, cand_vecs).flatten()
+
+    scored = [(c, sc) for c, sc in zip(candidates, sims) if sc >= _VERSION_SIMILARITY_THRESHOLD]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [c for c, _ in scored[:top_k]]

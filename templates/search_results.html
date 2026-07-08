@@ -80,14 +80,15 @@
       <div class="card">
         <h3>📄 식약처 원문 발췌</h3>
         {% for m in notices %}
+        {% set latest_note = get_latest_note(m.doc.id) %}
         <div class="doc-item">
           <div class="doc-title"><a href="{{ url_for('document_detail', doc_id=m.doc.id) }}">{{ m.doc.title }}</a>
             {% if m.doc.origin == 'mfds_rss' %}<span class="tag tag-auto">자동수집</span>{% endif %}
             {% if m.doc.upload_date|is_new %}<span class="new-badge">신규</span>{% endif %}
-            {% if m.doc.impact_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+            {% if latest_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
           </div>
           <p class="doc-snippet">{{ m.snippet }}</p>
-          {% if m.doc.impact_note %}<p class="memo-preview">📝 {{ m.doc.impact_note[:120] }}{% if m.doc.impact_note|length > 120 %}...{% endif %}</p>{% endif %}
+          {% if latest_note %}<p class="memo-preview">📝 {{ latest_note['note_text'][:120] }}{% if latest_note['note_text']|length > 120 %}...{% endif %}</p>{% endif %}
           <div class="doc-links">
             {% if m.doc.source_url %}
               <button type="button" class="btn-view-original" data-title="{{ m.doc.title }}" data-url="{{ m.doc.source_url }}">🔗 원문 바로보기</button>
@@ -105,11 +106,12 @@
       <div class="card">
         <h3>❓ 관련 Q&A 원문</h3>
         {% for item in qna_pairs_by_doc %}
+        {% set latest_note = get_latest_note(item.doc.id) %}
         <div class="doc-item">
           <div class="doc-title"><a href="{{ url_for('document_detail', doc_id=item.doc.id) }}">{{ item.doc.title }}</a>
-            {% if item.doc.impact_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+            {% if latest_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
           </div>
-          {% if item.doc.impact_note %}<p class="memo-preview">📝 {{ item.doc.impact_note[:120] }}{% if item.doc.impact_note|length > 120 %}...{% endif %}</p>{% endif %}
+          {% if latest_note %}<p class="memo-preview">📝 {{ latest_note['note_text'][:120] }}{% if latest_note['note_text']|length > 120 %}...{% endif %}</p>{% endif %}
           {% if item.pairs %}
             {% for p in item.pairs %}
             <div class="qna-orig">

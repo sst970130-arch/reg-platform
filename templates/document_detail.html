@@ -81,16 +81,45 @@
 
 <div class="card">
   <h3>📝 실무 영향 메모 (RA/QC 직접 작성)</h3>
-  <form action="{{ url_for('document_impact_save', doc_id=doc.id) }}" method="post">
-    <textarea name="impact_note" rows="4" placeholder="예: 표시량 150g 이하 액제 규격 재검토 필요, QC 시험법 SOP 개정 검토 등">{{ doc.impact_note or '' }}</textarea>
-    <button type="submit" class="btn-submit">메모 저장</button>
+  <p class="page-meta">저장할 때마다 새 스티커 메모가 아래에 쌓입니다 (기존 메모는 지워지지 않습니다).</p>
+  <form action="{{ url_for('document_note_add', doc_id=doc.id) }}" method="post">
+    <textarea name="note_text" rows="3" placeholder="예: 표시량 150g 이하 액제 규격 재검토 필요, QC 시험법 SOP 개정 검토 등"></textarea>
+    <button type="submit" class="btn-submit">메모 추가</button>
   </form>
+  {% if notes %}
+  <div class="sticky-notes">
+    {% for n in notes %}
+    <div class="sticky-note">
+      <div class="sticky-note-view">
+        <div class="sticky-note-text">{{ n.note_text }}</div>
+        <div class="sticky-note-footer">
+          <span class="sticky-note-date">{{ n.created_date|fmt_date }}</span>
+          <span class="sticky-note-actions">
+            <button type="button" class="sticky-note-edit-btn" title="수정">✏️</button>
+            <form action="{{ url_for('note_delete', note_id=n.id) }}" method="post" onsubmit="return confirm('이 메모를 삭제하시겠습니까?');">
+              <button type="submit" class="sticky-note-del-btn" title="삭제">🗑</button>
+            </form>
+          </span>
+        </div>
+      </div>
+      <form class="sticky-note-edit-form" action="{{ url_for('note_edit', note_id=n.id) }}" method="post" hidden>
+        <textarea name="note_text" rows="3">{{ n.note_text }}</textarea>
+        <div class="sticky-note-edit-actions">
+          <button type="submit" class="sticky-note-save-btn">저장</button>
+          <button type="button" class="sticky-note-cancel-btn">취소</button>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 
-{% if other_docs %}
 <div class="card">
   <h3>🔍 이전 버전과 비교</h3>
-  <p class="page-meta">같은 분류({{ doc.category|category_label }})의 다른 문서를 골라 문장 단위로 비교합니다 (공식 신구조문대비표가 아닌 참고용 비교입니다).</p>
+  {% if other_docs %}
+  <p class="page-meta">제목이 실제로 비슷한(같은 규정의 다른 버전으로 보이는) 문서만 골라뒀습니다
+  (공식 신구조문대비표가 아닌 참고용 비교입니다).</p>
   <form action="{{ url_for('document_diff', doc_id=doc.id) }}" method="get" class="diff-picker-form">
     <select name="with">
       {% for d in other_docs %}
@@ -99,6 +128,15 @@
     </select>
     <button type="submit" class="btn-submit">비교하기</button>
   </form>
+  {% else %}
+  <p class="page-meta">비교할 만한 이전 버전이 아직 자동으로는 찾아지지 않았습니다. 지금은 이 문서의
+  스냅샷 1건만 수집돼 있어서 그렇습니다 — 나중에 식약처가 같은 규정을 개정해 새로 게시하면, 제목이
+  비슷한 문서로 자동 인식돼 그때부터 여기서 비교할 수 있게 됩니다.</p>
+  {% endif %}
+  <p class="page-meta">갖고 계신 이전 버전 파일(PDF 등)이 있으면 직접 올려서 바로 비교할 수도 있습니다.</p>
+  <form action="{{ url_for('document_diff_upload', doc_id=doc.id) }}" method="post" enctype="multipart/form-data" class="diff-picker-form">
+    <input type="file" name="file" accept=".pdf,.pptx,.ppt,.txt" required>
+    <button type="submit" class="btn-submit">업로드해서 비교하기</button>
+  </form>
 </div>
-{% endif %}
 {% endblock %}

@@ -38,3 +38,22 @@
     if (e.key === "Escape" && !modal.hidden) closeModal();
   });
 })();
+
+// 스티커 메모 수정 - 수정 버튼을 누르면 그 메모만 입력창으로 바뀝니다.
+(function () {
+  document.addEventListener("click", function (e) {
+    const editBtn = e.target.closest(".sticky-note-edit-btn");
+    if (editBtn) {
+      const note = editBtn.closest(".sticky-note");
+      note.querySelector(".sticky-note-view").hidden = true;
+      note.querySelector(".sticky-note-edit-form").hidden = false;
+      return;
+    }
+    const cancelBtn = e.target.closest(".sticky-note-cancel-btn");
+    if (cancelBtn) {
+      const note = cancelBtn.closest(".sticky-note");
+      note.querySelector(".sticky-note-view").hidden = false;
+      note.querySelector(".sticky-note-edit-form").hidden = true;
+    }
+  });
+})();

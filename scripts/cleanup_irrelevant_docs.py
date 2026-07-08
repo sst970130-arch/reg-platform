@@ -17,13 +17,21 @@ from modules import db, mfds_sync
 
 def cleanup():
     rows = [r for r in db.get_all_documents() if r["origin"] == "mfds_rss"]
-    to_delete = [r for r in rows if mfds_sync.is_excluded(r["title"])]
+    to_delete = [r for r in rows if mfds_sync.is_excluded(r["title"], r["board_name"])]
 
+    freed_bytes = 0
     for r in to_delete:
         print(f"삭제: [{r['board_name']}] {r['title']}")
+        for a in db.get_attachments(r["id"]):
+            path = os.path.join(db.UPLOAD_DIR, a["stored_path"])
+            if os.path.exists(path):
+                freed_bytes += os.path.getsize(path)
+                os.remove(path)
+            db.delete_attachment(a["id"])
         db.delete_document(r["id"])
 
-    print(f"\n총 {len(to_delete)}건 삭제 완료 (자동수집 {len(rows)}건 중).")
+    print(f"\n총 {len(to_delete)}건 삭제 완료 (자동수집 {len(rows)}건 중), "
+          f"첨부파일 {freed_bytes / 1024 / 1024:.1f}MB 확보.")
 
 
 if __name__ == "__main__":

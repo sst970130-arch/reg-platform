@@ -87,6 +87,30 @@ def init_db():
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS document_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            note_text TEXT NOT NULL,
+            created_date TEXT NOT NULL
+        )
+        """
+    )
+    # 예전 방식(문서당 메모 1개, documents.impact_note)으로 저장된 메모를
+    # 새 스티커 메모 방식(document_notes, 여러 개 누적)으로 한 번만 옮겨줍니다.
+    old_notes = conn.execute(
+        "SELECT id, impact_note, upload_date FROM documents WHERE impact_note IS NOT NULL AND impact_note != ''"
+    ).fetchall()
+    for row in old_notes:
+        already = conn.execute(
+            "SELECT COUNT(*) as c FROM document_notes WHERE document_id = ?", (row["id"],)
+        ).fetchone()["c"]
+        if already == 0:
+            conn.execute(
+                "INSERT INTO document_notes (document_id, note_text, created_date) VALUES (?, ?, ?)",
+                (row["id"], row["impact_note"], row["upload_date"]),
+            )
     conn.commit()
     conn.close()
 
@@ -129,6 +153,13 @@ def get_document_by_external_guid(external_guid):
 def delete_document(doc_id):
     conn = get_db()
     conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+    conn.commit()
+    conn.close()
+
+
+def update_extracted_text(doc_id, extracted_text):
+    conn = get_db()
+    conn.execute("UPDATE documents SET extracted_text = ? WHERE id = ?", (extracted_text, doc_id))
     conn.commit()
     conn.close()
 
@@ -201,9 +232,52 @@ def has_attachments(document_id):
     return row["c"] > 0
 
 
-def update_impact_note(doc_id, note):
+def insert_note(document_id, note_text):
     conn = get_db()
-    conn.execute("UPDATE documents SET impact_note = ? WHERE id = ?", (note, doc_id))
+    conn.execute(
+        "INSERT INTO document_notes (document_id, note_text, created_date) VALUES (?, ?, ?)",
+        (document_id, note_text, datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_notes(document_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM document_notes WHERE document_id = ? ORDER BY created_date DESC", (document_id,)
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def get_latest_note(document_id):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM document_notes WHERE document_id = ? ORDER BY created_date DESC LIMIT 1",
+        (document_id,),
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def get_note(note_id):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM document_notes WHERE id = ?", (note_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def update_note(note_id, note_text):
+    conn = get_db()
+    conn.execute("UPDATE document_notes SET note_text = ? WHERE id = ?", (note_text, note_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_note(note_id):
+    conn = get_db()
+    conn.execute("DELETE FROM document_notes WHERE id = ?", (note_id,))
     conn.commit()
     conn.close()
 
