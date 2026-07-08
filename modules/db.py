@@ -11,6 +11,11 @@ BASE_DIR = "/tmp"
 import pathlib
 pathlib.Path(BASE_DIR + "/data").mkdir(parents=True, exist_ok=True)
 pathlib.Path(BASE_DIR + "/data/uploads").mkdir(parents=True, exist_ok=True)
+import shutil as _shutil
+_src = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'app.db'))
+if not os.path.exists(DB_PATH) and os.path.exists(_src):
+    _shutil.copy2(_src, DB_PATH)
+
 DB_PATH = os.path.join(BASE_DIR, "data", "app.db")
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
 
