@@ -8,6 +8,9 @@ import os
 from datetime import datetime, timedelta
 
 BASE_DIR = "/tmp"
+import pathlib
+pathlib.Path(BASE_DIR + "/data").mkdir(parents=True, exist_ok=True)
+pathlib.Path(BASE_DIR + "/data/uploads").mkdir(parents=True, exist_ok=True)
 DB_PATH = os.path.join(BASE_DIR, "data", "app.db")
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
 

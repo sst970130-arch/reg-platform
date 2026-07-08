@@ -20,6 +20,7 @@ from modules import db, extract, search, ai_analysis, mfds_sync
 load_dotenv()
 
 app = Flask(__name__)
+db.init_db()
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.jinja_env.globals["get_latest_note"] = db.get_latest_note
 
