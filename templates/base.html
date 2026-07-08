@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}사내 제약 R&D 규제 통합 플랫폼{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topnav">
+  <a href="{{ url_for('index') }}" class="topnav-brand">규제 통합 플랫폼</a>
+  <nav class="topnav-links">
+    <a href="{{ url_for('index') }}">대시보드</a>
+    <a href="{{ url_for('category_list', cat='notice') }}">고시/가이드라인</a>
+    <a href="{{ url_for('category_list', cat='qna') }}">Q&amp;A</a>
+    <a href="{{ url_for('category_list', cat='seminar') }}">세미나</a>
+    <a href="{{ url_for('guide_list') }}">실무 해설</a>
+    <a href="{{ url_for('admin') }}">관리자</a>
+  </nav>
+  <div class="topnav-meta">
+    {% if not ai_enabled %}<span class="ai-warning-pill" title="관리자 &gt; .env에 ANTHROPIC_API_KEY 추가 시 AI 보조 요약 사용 가능">AI 보조 미설정</span>{% endif %}
+    <span class="doc-count">등록 문서 {{ doc_count }}건</span>
+  </div>
+</header>
+
+<main class="content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<div id="doc-modal" class="doc-modal" hidden>
+  <div class="doc-modal-backdrop" data-modal-close></div>
+  <div class="doc-modal-box">
+    <div class="doc-modal-header">
+      <span id="doc-modal-title">원문 보기</span>
+      <div class="doc-modal-actions">
+        <a id="doc-modal-newtab" href="#" target="_blank" rel="noopener">새 창에서 열기 ↗</a>
+        <button type="button" data-modal-close>닫기 ✕</button>
+      </div>
+    </div>
+    <iframe id="doc-modal-iframe" src="about:blank" title="원문 보기"></iframe>
+    <p class="doc-modal-fallback-note">원문이 표시되지 않으면 "새 창에서 열기"를 이용해 주세요.</p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

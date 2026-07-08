@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">관리자 문서 업로드</h1>
+<p class="page-desc">식약처 고시/Q&A 원문, 사내 세미나 발표자료(PPT 등)를 등록하면 자동으로 텍스트가 추출되어 검색·AI 분석에 사용됩니다.
+실무 해설/Q&A 지식베이스는 <a href="{{ url_for('admin_guides') }}">해설 노트 관리</a>에서 별도로 작성합니다.</p>
+
+<p class="sync-status">
+  식약처 자동 수집(RSS) 마지막 동기화:
+  {% if last_sync.time %}
+    {{ last_sync.time|fmt_date }} ({{ last_sync.new_count }}건 신규 등록)
+    {% if last_sync.error %}<span class="sync-error">· 오류: {{ last_sync.error }}</span>{% endif %}
+  {% else %}
+    대기 중 (앱 기동 후 잠시 뒤 첫 동기화가 실행됩니다)
+  {% endif %}
+</p>
+
+<div class="card upload-card">
+  <form action="{{ url_for('admin_upload') }}" method="post" enctype="multipart/form-data">
+    <div class="form-row">
+      <label>분류</label>
+      <select name="category" required>
+        <option value="notice">식약처 고시/가이드라인</option>
+        <option value="qna">식약처 Q&A</option>
+        <option value="seminar">사내 세미나 자료</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>제목 *</label>
+      <input type="text" name="title" required placeholder="예: 완제의약품 미생물한도 기준 개정 고시 (2026-06)">
+    </div>
+    <div class="form-row">
+      <label>대상 팀 (선택)</label>
+      <select name="team_tag">
+        <option value="">전체</option>
+        <option value="RA">RA</option>
+        <option value="QC_QA">QC/QA</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>파일 업로드 (PDF/PPTX/TXT)</label>
+      <input type="file" name="file" accept=".pdf,.pptx,.ppt,.txt">
+    </div>
+    <div class="form-row">
+      <label>또는 텍스트 직접 붙여넣기</label>
+      <textarea name="manual_text" rows="5" placeholder="파일이 없다면 원문 텍스트를 붙여넣어도 됩니다."></textarea>
+    </div>
+    <div class="form-row">
+      <label>식약처 원문 링크 (선택)</label>
+      <input type="text" name="source_url" placeholder="https://www.mfds.go.kr/...">
+    </div>
+    <div class="form-row seminar-only">
+      <label>발표자 (세미나 자료인 경우)</label>
+      <input type="text" name="presenter" placeholder="예: 홍길동 연구원">
+    </div>
+    <div class="form-row seminar-only">
+      <label>발표일 (세미나 자료인 경우)</label>
+      <input type="date" name="event_date">
+    </div>
+    <div class="form-row">
+      <label>등록자</label>
+      <input type="text" name="uploader" placeholder="이름 또는 사번">
+    </div>
+    <button type="submit" class="btn-submit">등록하기</button>
+  </form>
+</div>
+
+<h2 class="section-title">등록된 문서 목록 ({{ docs|length }}건)</h2>
+<table class="doc-table">
+  <thead>
+    <tr><th>분류</th><th>등록방식</th><th>제목</th><th>등록일</th><th>등록자</th><th>파일</th></tr>
+  </thead>
+  <tbody>
+    {% for d in docs %}
+    <tr>
+      <td><span class="tag tag-{{ d['category'] }}">{{ d['category']|category_label }}</span></td>
+      <td>{% if d['origin'] == 'mfds_rss' %}<span class="tag tag-auto">자동수집{% if d['board_name'] %} ({{ d['board_name'] }}){% endif %}</span>{% else %}<span class="tag tag-manual">수동등록</span>{% endif %}</td>
+      <td>{{ d['title'] }} {% if d['upload_date']|is_new %}<span class="new-badge">신규</span>{% endif %}</td>
+      <td>{{ d['upload_date']|fmt_date }}</td>
+      <td>{{ d['uploader'] or '-' }}</td>
+      <td>{% if d['stored_path'] %}<a href="{{ url_for('download', doc_id=d['id']) }}">다운로드</a>{% elif d['source_url'] %}<a href="{{ d['source_url'] }}" target="_blank" rel="noopener">원문 링크</a>{% else %}-{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">등록된 문서가 없습니다.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

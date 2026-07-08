@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="dash-search dash-search-compact">
+  <form action="{{ url_for('do_search') }}" method="get">
+    <input type="text" name="q" placeholder="규제, 가이드라인, 성분명 등을 검색하세요" value="{{ query or '' }}" autofocus>
+    <button type="submit">검색</button>
+  </form>
+</div>
+
+{% if results is not none %}
+  {% if results|length == 0 and not matched_guides %}
+    <div class="no-result">
+      '<strong>{{ query }}</strong>'에 대한 관련 문서를 찾지 못했습니다.
+      <a href="{{ url_for('admin') }}">관리자 업로드</a>에서 관련 고시/Q&A 문서를 먼저 등록해 보세요.
+    </div>
+  {% else %}
+  <div class="result-grid">
+    <section class="col col-left">
+      <h2>해설 · AI 분석</h2>
+
+      {% if matched_guides %}
+      <div class="card guide-card">
+        <h3>📘 실무 해설 (밸리데이션 가이드)</h3>
+        <p class="draft-warning">⚠ 아래 내용은 초안입니다. 실무 적용 전 RA/QC 검토·승인이 필요합니다.</p>
+        {% for g in matched_guides %}
+        <div class="guide-item">
+          <a href="{{ url_for('guide_detail', note_id=g['id']) }}" class="guide-title">{{ g['title'] }}</a>
+          <p class="doc-snippet">{{ (g['body'] or '')[:180] }}...</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <h3>🔎 직관적 요약</h3>
+        <p class="summary-text">{{ ai_result.summary }}</p>
+        {% if ai_result.error %}<p class="ai-error">{{ ai_result.error }}</p>{% endif %}
+      </div>
+
+      {% if ai_result.qna_explanations %}
+      <div class="card">
+        <h3>💬 Q&A 기반 해설</h3>
+        {% for qa in ai_result.qna_explanations %}
+        <div class="qa-explain-item">
+          <div class="qa-question">Q. {{ qa.question }}</div>
+          <div class="qa-explanation">{{ qa.explanation }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if ai_result.action_items and (ai_result.action_items.RA or ai_result.action_items.QC_QA) %}
+      <div class="card">
+        <h3>✅ 실무 적용 가이드 (Action Items)</h3>
+        <div class="action-columns">
+          <div class="action-col">
+            <div class="action-team">RA 팀</div>
+            <ul>
+              {% for item in ai_result.action_items.RA %}<li>{{ item }}</li>{% endfor %}
+              {% if not ai_result.action_items.RA %}<li class="empty">해당 없음</li>{% endif %}
+            </ul>
+          </div>
+          <div class="action-col">
+            <div class="action-team">QC/QA 팀</div>
+            <ul>
+              {% for item in ai_result.action_items.QC_QA %}<li>{{ item }}</li>{% endfor %}
+              {% if not ai_result.action_items.QC_QA %}<li class="empty">해당 없음</li>{% endif %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="col col-right">
+      <h2>원문 · 관련 자료</h2>
+
+      {% if notices %}
+      <div class="card">
+        <h3>📄 식약처 원문 발췌</h3>
+        {% for m in notices %}
+        <div class="doc-item">
+          <div class="doc-title"><a href="{{ url_for('document_detail', doc_id=m.doc.id) }}">{{ m.doc.title }}</a>
+            {% if m.doc.origin == 'mfds_rss' %}<span class="tag tag-auto">자동수집</span>{% endif %}
+            {% if m.doc.upload_date|is_new %}<span class="new-badge">신규</span>{% endif %}
+            {% if m.doc.impact_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+          </div>
+          <p class="doc-snippet">{{ m.snippet }}</p>
+          {% if m.doc.impact_note %}<p class="memo-preview">📝 {{ m.doc.impact_note[:120] }}{% if m.doc.impact_note|length > 120 %}...{% endif %}</p>{% endif %}
+          <div class="doc-links">
+            {% if m.doc.source_url %}
+              <button type="button" class="btn-view-original" data-title="{{ m.doc.title }}" data-url="{{ m.doc.source_url }}">🔗 원문 바로보기</button>
+            {% elif m.doc.stored_path %}
+              <button type="button" class="btn-view-original" data-title="{{ m.doc.title }}" data-url="{{ url_for('view_inline', doc_id=m.doc.id) }}">📎 원문 바로보기</button>
+            {% endif %}
+            {% if m.doc.stored_path %}<a href="{{ url_for('download', doc_id=m.doc.id) }}">다운로드</a>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if qna_pairs_by_doc %}
+      <div class="card">
+        <h3>❓ 관련 Q&A 원문</h3>
+        {% for item in qna_pairs_by_doc %}
+        <div class="doc-item">
+          <div class="doc-title"><a href="{{ url_for('document_detail', doc_id=item.doc.id) }}">{{ item.doc.title }}</a>
+            {% if item.doc.impact_note %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+          </div>
+          {% if item.doc.impact_note %}<p class="memo-preview">📝 {{ item.doc.impact_note[:120] }}{% if item.doc.impact_note|length > 120 %}...{% endif %}</p>{% endif %}
+          {% if item.pairs %}
+            {% for p in item.pairs %}
+            <div class="qna-orig">
+              <div class="qna-orig-q">Q. {{ p.question }}</div>
+              <div class="qna-orig-a">A. {{ p.answer }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="doc-snippet">{{ (item.doc.extracted_text or "")[:250] }}...</p>
+          {% endif %}
+          <div class="doc-links">
+            {% if item.doc.source_url %}
+              <button type="button" class="btn-view-original" data-title="{{ item.doc.title }}" data-url="{{ item.doc.source_url }}">🔗 원문 바로보기</button>
+            {% elif item.doc.stored_path %}
+              <button type="button" class="btn-view-original" data-title="{{ item.doc.title }}" data-url="{{ url_for('view_inline', doc_id=item.doc.id) }}">📎 원문 바로보기</button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <h3>🎤 관련 사내 세미나 자료</h3>
+        {% if related_seminars %}
+          {% for s in related_seminars %}
+          <div class="doc-item">
+            <div class="doc-title">{{ s.title }}</div>
+            <div class="seminar-meta">
+              {% if s.presenter %}발표자: {{ s.presenter }}{% endif %}
+              {% if s.event_date %} · {{ s.event_date }}{% endif %}
+            </div>
+            <div class="doc-links">
+              {% if s.stored_path %}<a href="{{ url_for('download', doc_id=s.id) }}">📎 발표자료 다운로드</a>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty">연결된 세미나 자료가 없습니다.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

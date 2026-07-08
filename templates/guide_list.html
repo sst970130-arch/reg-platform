@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">실무 해설 / 밸리데이션 가이드</h1>
+<p class="page-desc draft-warning">⚠ 이 지식베이스는 결재 없이(유료 AI 미사용) 사전 작성된 해설 초안입니다.
+실무 적용 전 RA/QC 검토·승인이 필요합니다.</p>
+
+{% if notes %}
+<div class="guide-grid">
+  {% for n in notes %}
+  <a class="card guide-tile" href="{{ url_for('guide_detail', note_id=n['id']) }}">
+    <div class="tag tag-guide-cat">{{ n['topic_category'] }}</div>
+    <div class="guide-title">{{ n['title'] }}</div>
+    <div class="guide-status status-{{ n['status'] }}">{{ '검토완료' if n['status'] == 'reviewed' else '초안' }}</div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">등록된 해설 노트가 없습니다. <a href="{{ url_for('admin_guides') }}">관리자 페이지</a>에서 작성해 주세요.</p>
+{% endif %}
+{% endblock %}

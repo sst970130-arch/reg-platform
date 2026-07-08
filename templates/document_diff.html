@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="back-link" href="{{ url_for('document_detail', doc_id=doc.id) }}">← 문서 상세로</a>
+<h1 class="page-title">문서 비교 (참고용)</h1>
+<p class="draft-warning">⚠ 이 비교는 공식 "신구조문대비표"가 아니라, 저장된 두 문서 본문을 문장 단위로
+기계적으로 비교한 것입니다. 실제 조문 변경 여부는 반드시 원문으로 확인하세요.</p>
+
+<div class="diff-legend">
+  <span class="doc-title">A: {{ doc.title }}</span>
+  <span class="doc-title">B: {{ other.title }}</span>
+</div>
+
+<div class="card diff-wrap">
+  {% if diff_lines %}
+    {% for d in diff_lines %}
+      {% if d.type == 'hunk' %}
+      <div class="diff-line diff-hunk">{{ d.text }}</div>
+      {% else %}
+      <div class="diff-line diff-{{ d.type }}">{{ '+ ' if d.type == 'add' else ('- ' if d.type == 'remove' else '　 ') }}{{ d.text }}</div>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <p class="empty">두 문서 내용이 동일하거나, 비교할 내용이 없습니다.</p>
+  {% endif %}
+</div>
+{% endblock %}

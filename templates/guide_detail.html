@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="back-link" href="{{ url_for('guide_list') }}">← 해설 목록으로</a>
+<h1 class="page-title">{{ note.title }}</h1>
+<p class="draft-warning">⚠ 이 내용은 초안({{ '검토완료' if note.status == 'reviewed' else '초안 - RA/QC 검토 필요' }})입니다.
+실제 사내 SOP·식약처 최신 가이드라인과 대조 후 실무에 적용하세요.</p>
+
+<div class="card guide-body">
+  <pre class="guide-body-text">{{ note.body }}</pre>
+</div>
+
+{% if qna %}
+<div class="card">
+  <h3>❓ 관련 Q&amp;A</h3>
+  {% for p in qna %}
+  <div class="qna-orig">
+    <div class="qna-orig-q">Q. {{ p.question }}</div>
+    <div class="qna-orig-a">A. {{ p.answer }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p class="page-meta">최종 수정일: {{ note.updated_date|fmt_date }} · <a href="{{ url_for('admin_guides') }}">관리자 페이지에서 수정</a></p>
+{% endblock %}

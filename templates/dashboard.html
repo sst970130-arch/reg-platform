@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="dash-search">
+  <form action="{{ url_for('do_search') }}" method="get">
+    <input type="text" name="q" placeholder="규제, 가이드라인, 성분명 등을 검색하세요 (예: 무균시험, 용출시험 개정, 직선성)" autofocus>
+    <button type="submit">검색</button>
+  </form>
+</div>
+
+<div class="tile-grid">
+  <a class="tile tile-notice" href="{{ url_for('category_list', cat='notice') }}">
+    <div class="tile-icon">📜</div>
+    <div class="tile-title">식약처 고시/가이드라인</div>
+    <div class="tile-count">{{ counts.get('notice', 0) }}건</div>
+  </a>
+  <a class="tile tile-qna" href="{{ url_for('category_list', cat='qna') }}">
+    <div class="tile-icon">❓</div>
+    <div class="tile-title">식약처 Q&amp;A</div>
+    <div class="tile-count">{{ counts.get('qna', 0) }}건</div>
+  </a>
+  <a class="tile tile-seminar" href="{{ url_for('category_list', cat='seminar') }}">
+    <div class="tile-icon">🎤</div>
+    <div class="tile-title">사내 세미나 자료</div>
+    <div class="tile-count">{{ counts.get('seminar', 0) }}건</div>
+  </a>
+  <a class="tile tile-guide" href="{{ url_for('guide_list') }}">
+    <div class="tile-icon">📘</div>
+    <div class="tile-title">실무 해설 / 밸리데이션 가이드</div>
+    <div class="tile-count">{{ guide_count }}건</div>
+  </a>
+</div>
+
+<div class="dash-lower">
+  <section class="dash-recent">
+    <div class="section-head">
+      <h2>최신 업데이트</h2>
+      <span class="sync-status">
+        {% if last_sync.time %}
+          식약처 자동 수집 마지막 동기화: {{ last_sync.time|fmt_date }} ({{ last_sync.new_count }}건 신규)
+          {% if last_sync.error %}<span class="sync-error">· 오류: {{ last_sync.error }}</span>{% endif %}
+        {% else %}
+          자동 수집 대기 중 (앱 기동 후 잠시 뒤 첫 동기화가 실행됩니다)
+        {% endif %}
+      </span>
+    </div>
+
+    {% if recent_docs %}
+    <div class="feed-list">
+      {% for d in recent_docs %}
+      <div class="feed-item">
+        <div class="feed-meta">
+          <span class="tag tag-{{ d['category'] }}">{{ d['category']|category_label }}</span>
+          {% if d['board_name'] %}<span class="tag tag-board">{{ d['board_name'] }}</span>{% endif %}
+          {% if d['origin'] == 'mfds_rss' %}<span class="tag tag-auto">자동수집</span>{% endif %}
+          {% if d['upload_date']|is_new %}<span class="new-badge">신규</span>{% endif %}
+          {% if d['impact_note'] %}<span class="tag tag-memo">📝 메모</span>{% endif %}
+          <span class="feed-date">{{ d['upload_date']|fmt_date }}</span>
+        </div>
+        <div class="feed-title"><a href="{{ url_for('document_detail', doc_id=d['id']) }}">{{ d['title'] }}</a></div>
+        {% set preview = d['extracted_text']|revision_preview %}
+        {% if preview %}<p class="doc-snippet">🛠 {{ preview }}</p>{% endif %}
+        {% if d['impact_note'] %}<p class="memo-preview">📝 {{ d['impact_note'][:120] }}{% if d['impact_note']|length > 120 %}...{% endif %}</p>{% endif %}
+        <div class="doc-links">
+          {% if d['source_url'] %}
+            <button type="button" class="btn-view-original" data-title="{{ d['title'] }}" data-url="{{ d['source_url'] }}">🔗 원문 바로보기</button>
+          {% elif d['stored_path'] %}
+            <button type="button" class="btn-view-original" data-title="{{ d['title'] }}" data-url="{{ url_for('view_inline', doc_id=d['id']) }}">📎 원문 바로보기</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">아직 등록된 문서가 없습니다. 관리자 페이지에서 문서를 등록하거나, 자동 동기화를 기다려 주세요.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% endblock %}

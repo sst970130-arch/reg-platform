@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="page-title">실무 해설 노트 관리</h1>
+<p class="page-desc">밸리데이션 등 실무 해설·Q&amp;A를 직접 작성/수정합니다. 유료 AI 호출 없이 동작하는
+지식베이스이며, 등록 즉시 검색·해설 목록에 반영됩니다.</p>
+
+<div class="card upload-card">
+  <form action="{{ url_for('admin_guides_save') }}" method="post">
+    {% if edit_note %}<input type="hidden" name="note_id" value="{{ edit_note.id }}">{% endif %}
+    <div class="form-row">
+      <label>주제 카테고리</label>
+      <input type="text" name="topic_category" value="{{ edit_note.topic_category if edit_note else 'validation' }}" placeholder="예: validation">
+    </div>
+    <div class="form-row">
+      <label>제목 *</label>
+      <input type="text" name="title" required value="{{ edit_note.title if edit_note else '' }}" placeholder="예: 밸리데이션 - 직선성(Linearity) 범위 설정">
+    </div>
+    <div class="form-row">
+      <label>본문 * (정의/판정기준/실무 절차 등)</label>
+      <textarea name="body" rows="14" required placeholder="정의, 판정기준, 실무 절차 등을 자유롭게 작성하세요.">{{ edit_note.body if edit_note else '' }}</textarea>
+    </div>
+    <div class="form-row">
+      <label>상태</label>
+      <select name="status">
+        <option value="draft" {% if not edit_note or edit_note.status == 'draft' %}selected{% endif %}>초안 (RA/QC 검토 필요)</option>
+        <option value="reviewed" {% if edit_note and edit_note.status == 'reviewed' %}selected{% endif %}>검토완료</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Q&amp;A (질문/답변 쌍, 최대 5개까지 입력)</label>
+      {% for i in range(5) %}
+      <div class="qna-input-row">
+        <input type="text" name="qna_question" placeholder="질문" value="{{ edit_qna[i].question if edit_qna and edit_qna|length > i else '' }}">
+        <input type="text" name="qna_answer" placeholder="답변" value="{{ edit_qna[i].answer if edit_qna and edit_qna|length > i else '' }}">
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn-submit">{{ '수정 저장' if edit_note else '등록하기' }}</button>
+    {% if edit_note %}<a class="btn-cancel" href="{{ url_for('admin_guides') }}">취소</a>{% endif %}
+  </form>
+</div>
+
+<h2 class="section-title">등록된 해설 노트 ({{ notes|length }}건)</h2>
+<table class="doc-table">
+  <thead>
+    <tr><th>카테고리</th><th>제목</th><th>상태</th><th>수정일</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for n in notes %}
+    <tr>
+      <td>{{ n['topic_category'] }}</td>
+      <td><a href="{{ url_for('guide_detail', note_id=n['id']) }}">{{ n['title'] }}</a></td>
+      <td>{{ '검토완료' if n['status'] == 'reviewed' else '초안' }}</td>
+      <td>{{ n['updated_date']|fmt_date }}</td>
+      <td><a href="{{ url_for('admin_guides', edit=n['id']) }}">수정</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="empty">등록된 해설 노트가 없습니다.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
