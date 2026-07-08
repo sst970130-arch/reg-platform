@@ -1,23 +1,23 @@
 """
-데이터베이스(SQLite) 관련 모듈
-- documents 테이블 하나로 고시/Q&A/세미나자료를 모두 관리합니다.
-- 코딩을 잘 모르셔도, 이 파일은 거의 건드릴 일이 없습니다.
+?°ì´?°ë² ?´ì¤(SQLite) ê´??ëª¨ë
+- documents ?ì´ë¸??ëë¡?ê³ ì/Q&A/?¸ë??ìë£ë? ëª¨ë ê´ë¦¬í©?ë¤.
+- ì½ë©????ëª¨ë¥´?ë, ???ì¼? ê±°ì ê±´ëë¦??¼ì´ ?ìµ?ë¤.
 """
 import sqlite3
 import os
 from datetime import datetime, timedelta
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = "/tmp"
 DB_PATH = os.path.join(BASE_DIR, "data", "app.db")
 UPLOAD_DIR = os.path.join(BASE_DIR, "data", "uploads")
 
-# 새 문서로 표시할 기준 (일 단위)
+# ??ë¬¸ìë¡??ì??ê¸°ì? (???¨ì)
 NEW_BADGE_DAYS = 14
 
 CATEGORY_LABELS = {
-    "notice": "식약처 고시/가이드라인",
-    "qna": "식약처 Q&A",
-    "seminar": "사내 세미나 자료",
+    "notice": "?ì½ì²?ê³ ì/ê°?´ë?¼ì¸",
+    "qna": "?ì½ì²?Q&A",
+    "seminar": "?¬ë´ ?¸ë????ë£",
 }
 
 
@@ -37,19 +37,19 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category TEXT NOT NULL,           -- notice / qna / seminar
             title TEXT NOT NULL,
-            team_tag TEXT,                    -- RA / QC_QA / ALL (실무 가이드 대상 팀 힌트)
+            team_tag TEXT,                    -- RA / QC_QA / ALL (?¤ë¬´ ê°?´ë ???? ?í¸)
             uploader TEXT,
-            presenter TEXT,                   -- 세미나 발표자 (세미나 자료용)
-            event_date TEXT,                  -- 세미나 발표일 등 (세미나 자료용)
-            source_url TEXT,                  -- 식약처 원문 등 외부 링크
+            presenter TEXT,                   -- ?¸ë???ë°í??(?¸ë????ë£??
+            event_date TEXT,                  -- ?¸ë???ë°í????(?¸ë????ë£??
+            source_url TEXT,                  -- ?ì½ì²??ë¬¸ ???¸ë? ë§í¬
             original_filename TEXT,
-            stored_path TEXT,                 -- 서버에 저장된 실제 파일 경로
-            extracted_text TEXT,              -- 추출된 본문 텍스트 (검색/AI 분석용)
+            stored_path TEXT,                 -- ?ë²????¥ë ?¤ì  ?ì¼ ê²½ë¡
+            extracted_text TEXT,              -- ì¶ì¶??ë³¸ë¬¸ ?ì¤??(ê²??AI ë¶ì??
             upload_date TEXT NOT NULL
         )
         """
     )
-    # 기존 DB에 새 컬럼을 안전하게 추가 (이미 있으면 조용히 무시)
+    # ê¸°ì¡´ DB????ì»¬ë¼???ì ?ê² ì¶ê? (?´ë? ?ì¼ë©?ì¡°ì©??ë¬´ì)
     for ddl in (
         "ALTER TABLE documents ADD COLUMN origin TEXT DEFAULT 'manual'",
         "ALTER TABLE documents ADD COLUMN external_guid TEXT",
@@ -59,17 +59,16 @@ def init_db():
         try:
             conn.execute(ddl)
         except sqlite3.OperationalError:
-            pass  # 컬럼이 이미 존재하는 경우
+            pass  # ì»¬ë¼???´ë? ì¡´ì¬?ë ê²½ì°
 
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS guide_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            topic_category TEXT NOT NULL,     -- 예: validation
+            topic_category TEXT NOT NULL,     -- ?? validation
             title TEXT NOT NULL,
-            body TEXT NOT NULL,               -- 정의/판정기준/실무 절차 등 본문(마크다운 텍스트)
-            qna_json TEXT,                    -- [{"question":..,"answer":..}, ...] JSON 문자열
-            status TEXT NOT NULL DEFAULT 'draft',  -- draft / reviewed
+            body TEXT NOT NULL,               -- ?ì/?ì ê¸°ì?/?¤ë¬´ ?ì°¨ ??ë³¸ë¬¸(ë§í¬?¤ì´ ?ì¤??
+            qna_json TEXT,                    -- [{"question":..,"answer":..}, ...] JSON ë¬¸ì??            status TEXT NOT NULL DEFAULT 'draft',  -- draft / reviewed
             created_date TEXT NOT NULL,
             updated_date TEXT NOT NULL
         )
@@ -81,8 +80,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             document_id INTEGER NOT NULL,
             filename TEXT NOT NULL,
-            stored_path TEXT NOT NULL,          -- data/uploads 안의 실제 파일명
-            file_seq INTEGER,
+            stored_path TEXT NOT NULL,          -- data/uploads ?ì ?¤ì  ?ì¼ëª?            file_seq INTEGER,
             created_date TEXT NOT NULL
         )
         """
@@ -97,8 +95,7 @@ def init_db():
         )
         """
     )
-    # 예전 방식(문서당 메모 1개, documents.impact_note)으로 저장된 메모를
-    # 새 스티커 메모 방식(document_notes, 여러 개 누적)으로 한 번만 옮겨줍니다.
+    # ?ì  ë°©ì(ë¬¸ì??ë©ëª¨ 1ê°? documents.impact_note)?¼ë¡ ??¥ë ë©ëª¨ë¥?    # ???¤í°ì»?ë©ëª¨ ë°©ì(document_notes, ?¬ë¬ ê°??ì )?¼ë¡ ??ë²ë§ ??²¨ì¤ë??
     old_notes = conn.execute(
         "SELECT id, impact_note, upload_date FROM documents WHERE impact_note IS NOT NULL AND impact_note != ''"
     ).fetchall()
@@ -338,7 +335,7 @@ def document_count():
     return row["c"]
 
 
-# ---------- 실무 해설 지식베이스 (guide_notes) ----------
+# ---------- ?¤ë¬´ ?´ì¤ ì§?ë² ?´ì¤ (guide_notes) ----------
 
 def insert_guide_note(topic_category, title, body, qna_json="[]", status="draft"):
     conn = get_db()
